@@ -737,4 +737,73 @@ return [
         'is_featured' => false,
         'sort_order' => 46,
     ],
+
+    // =========================================================================
+    // PDF TO OFFICE/TEXT CONVERSION TOOLS
+    // =========================================================================
+
+    'pdf-to-word' => [
+        'name' => 'PDF to Word',
+        'category' => 'convert',
+        'icon' => '📝',
+        'color' => '#2196F3',
+        'short_description' => 'Convert PDF to editable Word DOCX.',
+        'long_description' => 'Convert PDF documents to Microsoft Word DOCX format. Best-effort text extraction for editing in Word processors.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => true,
+        'sort_order' => 47,
+    ],
+
+    'pdf-to-excel' => [
+        'name' => 'PDF to Excel',
+        'category' => 'convert',
+        'icon' => '📊',
+        'color' => '#4CAF50',
+        'short_description' => 'Convert PDF tables to Excel XLSX.',
+        'long_description' => 'Extract tabular data from PDF and convert to Excel spreadsheet format. Detects columns by spacing patterns.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => true,
+        'sort_order' => 48,
+    ],
+
+    'pdf-to-ppt' => [
+        'name' => 'PDF to PowerPoint',
+        'category' => 'convert',
+        'icon' => '📽️',
+        'color' => '#FF5722',
+        'short_description' => 'Convert PDF pages to PowerPoint slides.',
+        'long_description' => 'Convert PDF documents to PowerPoint presentations. Each page becomes a slide with extracted text content.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => true,
+        'sort_order' => 49,
+    ],
+
+    'pdf-to-html' => [
+        'name' => 'PDF to HTML',
+        'category' => 'convert',
+        'icon' => '🌐',
+        'color' => '#FF9800',
+        'short_description' => 'Convert PDF to HTML web pages.',
+        'long_description' => 'Convert PDF documents to HTML format with basic structure. Generates clean HTML with headings and paragraphs.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 50,
+    ],
+
+    'pdf-to-csv' => [
+        'name' => 'PDF to CSV',
+        'category' => 'convert',
+        'icon' => '📄',
+        'color' => '#607D8B',
+        'short_description' => 'Extract tables from PDF to CSV.',
+        'long_description' => 'Extract tabular data from PDF documents and convert to CSV format for import into spreadsheets and databases.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 51,
+    ],
 ];
