@@ -13,6 +13,9 @@ if (!defined('APP_RUNNING')) {
     define('APP_RUNNING', true);
 }
 
+// Include ads renderer
+require_once __DIR__ . '/../lib/ads_renderer.php';
+
 /**
  * Render a complete tool page
  *
@@ -72,6 +75,16 @@ function render_tool_page(array $config): void
 
     // Generate CSRF token
     $csrf_token = csrf_token();
+
+    // Load all ad codes at once for efficiency
+    $ad_slots = [
+        'header_banner',
+        'before_tool',
+        'after_tool',
+        'in_content',
+        'footer_banner'
+    ];
+    $ad_codes = get_all_ad_codes($tool_slug, $ad_slots);
 
     // Build JSON-LD Schema
     $schema_webpage = [
@@ -174,9 +187,11 @@ function render_tool_page(array $config): void
     <div data-include="/partials/header.html"></div>
 
     <!-- Ad: Header Top -->
+    <?php if (!empty($ad_codes['header_banner'])): ?>
     <div id="ad_header_top" class="ad-slot ad-header-top">
-        <!-- Ad code will be inserted here -->
+        <?php echo $ad_codes['header_banner']; ?>
     </div>
+    <?php endif; ?>
 
     <!-- Hero Section -->
     <section class="tool-hero">
@@ -232,9 +247,11 @@ function render_tool_page(array $config): void
     </section>
 
     <!-- Ad: Below Hero -->
+    <?php if (!empty($ad_codes['before_tool'])): ?>
     <div id="ad_below_hero" class="ad-slot ad-below-hero">
-        <!-- Ad code will be inserted here -->
+        <?php echo $ad_codes['before_tool']; ?>
     </div>
+    <?php endif; ?>
 
     <!-- Main Content -->
     <main class="tool-content">
@@ -249,9 +266,11 @@ function render_tool_page(array $config): void
             </section>
 
             <!-- Ad: Below Tool -->
+            <?php if (!empty($ad_codes['after_tool'])): ?>
             <div id="ad_below_tool" class="ad-slot ad-below-tool">
-                <!-- Ad code will be inserted here -->
+                <?php echo $ad_codes['after_tool']; ?>
             </div>
+            <?php endif; ?>
 
             <!-- Key Features Section -->
             <section class="content-section features">
@@ -283,9 +302,11 @@ function render_tool_page(array $config): void
             </section>
 
             <!-- Ad: Between FAQ -->
+            <?php if (!empty($ad_codes['in_content'])): ?>
             <div id="ad_between_faq" class="ad-slot ad-between-faq">
-                <!-- Ad code will be inserted here -->
+                <?php echo $ad_codes['in_content']; ?>
             </div>
+            <?php endif; ?>
             <?php endif; ?>
 
             <!-- Related Tools Section -->
@@ -316,9 +337,11 @@ function render_tool_page(array $config): void
     </main>
 
     <!-- Ad: Footer -->
+    <?php if (!empty($ad_codes['footer_banner'])): ?>
     <div id="ad_footer" class="ad-slot ad-footer-top">
-        <!-- Ad code will be inserted here -->
+        <?php echo $ad_codes['footer_banner']; ?>
     </div>
+    <?php endif; ?>
 
     <!-- Footer Include -->
     <div data-include="/partials/footer.html"></div>
