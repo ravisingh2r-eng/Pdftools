@@ -11,35 +11,83 @@ if (!defined('APP_RUNNING')) {
 }
 
 // =============================================================================
-// SITE CONFIGURATION
+// LOAD ENVIRONMENT CONFIGURATION
 // =============================================================================
 
-define('SITE_NAME', 'PDF Tools');
-define('SITE_DESCRIPTION', 'Free online PDF tools to merge, split, compress, rotate, and protect your PDF files');
-define('BASE_URL', 'https://yourdomain.com'); // Change this to your domain
+$envFile = __DIR__ . '/env.php';
+if (file_exists($envFile)) {
+    require_once $envFile;
+} else {
+    // Fallback defaults for development
+    if (!defined('ENVIRONMENT')) define('ENVIRONMENT', 'local');
+    if (!defined('DEBUG_MODE')) define('DEBUG_MODE', true);
+    if (!defined('LOG_LEVEL')) define('LOG_LEVEL', 'debug');
+
+    // Database defaults
+    if (!defined('DB_HOST')) define('DB_HOST', 'localhost');
+    if (!defined('DB_NAME')) define('DB_NAME', 'pdf_tools');
+    if (!defined('DB_USER')) define('DB_USER', 'root');
+    if (!defined('DB_PASS')) define('DB_PASS', '');
+    if (!defined('DB_CHARSET')) define('DB_CHARSET', 'utf8mb4');
+
+    // Site defaults
+    if (!defined('BASE_URL')) define('BASE_URL', 'http://localhost');
+    if (!defined('SITE_NAME')) define('SITE_NAME', 'PDF Tools');
+    if (!defined('SITE_DESCRIPTION')) define('SITE_DESCRIPTION', 'Free online PDF tools');
+
+    // File handling defaults
+    if (!defined('UPLOAD_DIR')) define('UPLOAD_DIR', __DIR__ . '/../uploads/');
+    if (!defined('TEMP_DIR')) define('TEMP_DIR', __DIR__ . '/../uploads/temp/');
+    if (!defined('LOG_DIR')) define('LOG_DIR', __DIR__ . '/../logs/');
+    if (!defined('MAX_FILE_SIZE')) define('MAX_FILE_SIZE', 50 * 1024 * 1024);
+    if (!defined('ALLOWED_EXTENSIONS')) define('ALLOWED_EXTENSIONS', ['pdf']);
+}
 
 // =============================================================================
-// DATABASE CONFIGURATION
+// ERROR HANDLING BASED ON ENVIRONMENT
 // =============================================================================
 
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'your_database_name');
-define('DB_USER', 'your_database_user');
-define('DB_PASS', 'your_database_password');
-define('DB_CHARSET', 'utf8mb4');
-
-// =============================================================================
-// FILE UPLOAD CONFIGURATION
-// =============================================================================
-
-define('UPLOAD_DIR', __DIR__ . '/../uploads/');
-define('TEMP_DIR', __DIR__ . '/../uploads/temp/');
-define('MAX_FILE_SIZE', 50 * 1024 * 1024); // 50MB
-define('ALLOWED_EXTENSIONS', ['pdf']);
+if (defined('DEBUG_MODE') && DEBUG_MODE === true) {
+    error_reporting(E_ALL);
+    ini_set('display_errors', '1');
+} else {
+    error_reporting(E_ALL & ~E_DEPRECATED & ~E_STRICT);
+    ini_set('display_errors', '0');
+    ini_set('log_errors', '1');
+}
 
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
+
+/**
+ * Check if debug mode is enabled
+ *
+ * @return bool
+ */
+function is_debug_mode(): bool {
+    return defined('DEBUG_MODE') && DEBUG_MODE === true;
+}
+
+/**
+ * Check if production environment
+ *
+ * @return bool
+ */
+function is_production(): bool {
+    return defined('ENVIRONMENT') && ENVIRONMENT === 'production';
+}
+
+/**
+ * Get environment variable with default
+ *
+ * @param string $key
+ * @param mixed $default
+ * @return mixed
+ */
+function get_env(string $key, $default = null) {
+    return defined($key) ? constant($key) : $default;
+}
 
 /**
  * Get PDO database connection
@@ -68,7 +116,9 @@ function get_pdo(): PDO {
             $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
 
         } catch (PDOException $e) {
-            // Log error in production, show generic message
+            if (is_debug_mode()) {
+                throw $e;
+            }
             error_log('Database connection failed: ' . $e->getMessage());
             throw new PDOException('Database connection failed. Please try again later.');
         }

@@ -12,6 +12,13 @@ require_once __DIR__ . '/../../lib/rate_limiter.php';
 require_once __DIR__ . '/../../lib/error_logger.php';
 require_once __DIR__ . '/../_template_tool.php';
 
+// Load new service classes
+require_once __DIR__ . '/../../lib/Pdf/PdfMergeService.php';
+require_once __DIR__ . '/../../lib/Pdf/PdfServiceLoader.php';
+
+use PDFTools\Pdf\PdfMergeService;
+use PDFTools\Pdf\PdfServiceLoader;
+
 // Define tool slug
 $tool_slug = 'merge-pdf';
 
@@ -57,8 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             throw new Exception('Please select at least 2 PDF files to merge.');
         }
 
-        // Initialize PDF engine
+        // Initialize PDF engine and services
         $pdfEngine = new PDFEngine();
+
+        // Use new service architecture (PdfMergeService)
+        // Alternative: $mergeService = PdfServiceLoader::getInstance(TEMP_DIR)->getMergeService();
+        $mergeService = new PdfMergeService(TEMP_DIR);
 
         // Process each uploaded file
         $filesToMerge = [];
@@ -115,8 +126,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Generate output filename
         $outputPath = $pdfEngine->generate_temp_filename('merged', 'pdf');
 
-        // Merge the PDFs
-        $result = $pdfEngine->merge_pdfs($filesToMerge, $outputPath);
+        // Merge the PDFs using new service architecture
+        // This provides better separation of concerns and testability
+        $result = $mergeService->merge($filesToMerge, $outputPath);
+
+        // Legacy fallback (kept for reference):
+        // $result = $pdfEngine->merge_pdfs($filesToMerge, $outputPath);
 
         if (!$result || !file_exists($outputPath)) {
             throw new Exception('Failed to merge PDF files. Please try again.');
