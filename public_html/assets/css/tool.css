@@ -619,3 +619,150 @@
 .mb-2 { margin-bottom: 1rem; }
 .mb-3 { margin-bottom: 1.5rem; }
 .mb-4 { margin-bottom: 2rem; }
+
+/* =============================================================================
+   TOOL OPTIONS (Form Fields)
+   ============================================================================= */
+
+.tool-options {
+    margin: 1.5rem 0;
+    text-align: left;
+}
+
+.option-label {
+    display: block;
+    font-weight: 600;
+    color: var(--text-color);
+    margin-bottom: 0.75rem;
+}
+
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.radio-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #f5f5f5;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.radio-option:hover {
+    background: #eeeeee;
+}
+
+.radio-option input[type="radio"] {
+    margin-top: 0.25rem;
+    flex-shrink: 0;
+}
+
+.radio-option span {
+    flex: 1;
+}
+
+.radio-option strong {
+    display: block;
+    font-size: 0.95rem;
+    margin-bottom: 0.25rem;
+}
+
+.radio-option small {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-light);
+}
+
+.rotation-options .radio-option {
+    flex-direction: row;
+    align-items: center;
+}
+
+.rotation-preview {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rotation-preview svg {
+    color: var(--primary-color);
+}
+
+.option-field {
+    margin: 1rem 0;
+}
+
+.option-field label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: var(--text-color);
+}
+
+.option-field input[type="text"],
+.option-field input[type="number"],
+.option-field input[type="password"],
+.option-field select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius);
+    font-size: 1rem;
+    transition: var(--transition);
+}
+
+.option-field input:focus,
+.option-field select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
+.option-field input[type="number"] {
+    max-width: 150px;
+}
+
+.field-hint {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-light);
+    margin-top: 0.5rem;
+}
+
+.required {
+    color: #f44336;
+}
+
+.password-toggle {
+    margin-top: 1rem;
+}
+
+.password-toggle label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+.password-toggle input[type="checkbox"] {
+    cursor: pointer;
+}
+
+/* Responsive adjustments for radio groups */
+@media (min-width: 768px) {
+    .rotation-options {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .rotation-options .radio-option {
+        flex: 1;
+        min-width: 150px;
+    }
+}
