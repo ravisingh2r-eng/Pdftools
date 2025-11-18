@@ -1,0 +1,20 @@
+{
+    "name": "pdftools/pdf-tools",
+    "description": "100+ PDF Tools - Online PDF manipulation utilities",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.0",
+        "setasign/fpdf": "^1.8",
+        "setasign/fpdi": "^2.6"
+    },
+    "autoload": {
+        "classmap": [
+            "public_html/lib/"
+        ]
+    },
+    "config": {
+        "vendor-dir": "vendor",
+        "optimize-autoloader": true
+    }
+}
