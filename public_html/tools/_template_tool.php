@@ -16,6 +16,9 @@ if (!defined('APP_RUNNING')) {
 // Include ads renderer
 require_once __DIR__ . '/../lib/ads_renderer.php';
 
+// Include SEO helper
+require_once __DIR__ . '/../lib/seo_helper.php';
+
 /**
  * Render a complete tool page
  *
@@ -85,6 +88,11 @@ function render_tool_page(array $config): void
         'footer_banner'
     ];
     $ad_codes = get_all_ad_codes($tool_slug, $ad_slots);
+
+    // Auto-generate related tools if not provided
+    if (empty($related_tools)) {
+        $related_tools = get_seo_related_tools($tool_slug, 4);
+    }
 
     // Build JSON-LD Schema
     $schema_webpage = [
