@@ -1,0 +1,44 @@
+# PDF Tools - Clean URLs and Security
+# Place this file in /tools/ directory
+
+# Enable Rewrite Engine
+RewriteEngine On
+
+# Set base directory
+RewriteBase /tools/
+
+# Security: Deny access to hidden files
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Security: Prevent directory listing
+Options -Indexes
+
+# Redirect trailing slashes for non-directories
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} (.+)/$
+RewriteRule ^ %1 [R=301,L]
+
+# Handle clean URLs for tool pages
+# If the request is not a file or directory, route to index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^([^/]+)/?$ $1/index.php [L,QSA]
+
+# Cache control for static assets
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+</IfModule>
+
+# Gzip compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json
+</IfModule>

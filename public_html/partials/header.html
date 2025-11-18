@@ -1,0 +1,47 @@
+<header class="site-header">
+    <!-- Header Top Ad Slot -->
+    <div class="ad-slot ad-header-top" data-ad-slot="header_top">
+        <!-- Ad code will be inserted here -->
+    </div>
+
+    <div class="header-container">
+        <!-- Logo -->
+        <div class="logo">
+            <a href="/">
+                <span class="logo-icon">📄</span>
+                <span class="logo-text">PDF Tools</span>
+            </a>
+        </div>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" aria-label="Toggle menu" onclick="toggleMobileMenu()">
+            <span class="hamburger"></span>
+        </button>
+
+        <!-- Navigation -->
+        <nav class="main-nav" id="mainNav">
+            <ul class="nav-list">
+                <li><a href="/">Home</a></li>
+                <li class="dropdown">
+                    <a href="#" class="dropdown-toggle">All Tools</a>
+                    <ul class="dropdown-menu">
+                        <li><a href="/tools/merge-pdf/">Merge PDF</a></li>
+                        <li><a href="/tools/split-pdf/">Split PDF</a></li>
+                        <li><a href="/tools/compress-pdf/">Compress PDF</a></li>
+                        <li><a href="/tools/rotate-pdf/">Rotate PDF</a></li>
+                        <li><a href="/tools/protect-pdf/">Protect PDF</a></li>
+                    </ul>
+                </li>
+                <li><a href="#about">About</a></li>
+                <li><a href="#contact">Contact</a></li>
+            </ul>
+        </nav>
+    </div>
+</header>
+
+<script>
+function toggleMobileMenu() {
+    const nav = document.getElementById('mainNav');
+    nav.classList.toggle('active');
+}
+</script>
