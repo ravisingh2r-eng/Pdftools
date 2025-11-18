@@ -9,6 +9,21 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../lib/pdf_engine.php';
 require_once __DIR__ . '/../_template_tool.php';
 
+// Define tool slug
+$tool_slug = 'rotate-pdf';
+
+// Check if tool exists and is active in registry
+if (!is_tool_active($tool_slug)) {
+    http_response_code(404);
+    echo '<!DOCTYPE html><html><head><title>Tool Not Found</title></head><body>';
+    echo '<h1>Tool Not Found</h1><p>This tool is not available. <a href="/">Return to homepage</a></p>';
+    echo '</body></html>';
+    exit;
+}
+
+// Get tool metadata from registry
+$tool_data = get_tool($tool_slug);
+
 // Initialize error variable
 $error = null;
 
@@ -277,12 +292,8 @@ $config = [
         ]
     ],
 
-    'related_tools' => [
-        ['slug' => 'merge-pdf', 'name' => 'Merge PDF'],
-        ['slug' => 'split-pdf', 'name' => 'Split PDF'],
-        ['slug' => 'compress-pdf', 'name' => 'Compress PDF'],
-        ['slug' => 'protect-pdf', 'name' => 'Protect PDF']
-    ]
+    // Related Tools - dynamically loaded from registry
+    'related_tools' => get_related_tools($tool_slug)
 ];
 
 render_tool_page($config);

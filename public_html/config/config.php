@@ -139,6 +139,66 @@ function verify_csrf(string $token): bool {
     return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
 }
 
+/**
+ * Get tool data from registry
+ *
+ * @param string $slug Tool slug
+ * @return array|null Tool data or null if not found
+ */
+function get_tool(string $slug): ?array {
+    static $registry = null;
+
+    if ($registry === null) {
+        $registry = require __DIR__ . '/tools_registry.php';
+    }
+
+    return $registry[$slug] ?? null;
+}
+
+/**
+ * Check if tool exists and is active
+ *
+ * @param string $slug Tool slug
+ * @return bool
+ */
+function is_tool_active(string $slug): bool {
+    $tool = get_tool($slug);
+    return $tool !== null && $tool['is_active'];
+}
+
+/**
+ * Get related tools from registry
+ *
+ * @param string $current_slug Current tool slug to exclude
+ * @param string|null $category Filter by category
+ * @param int $limit Maximum number of tools
+ * @return array
+ */
+function get_related_tools(string $current_slug, ?string $category = null, int $limit = 4): array {
+    static $registry = null;
+
+    if ($registry === null) {
+        $registry = require __DIR__ . '/tools_registry.php';
+    }
+
+    $related = [];
+
+    foreach ($registry as $slug => $tool) {
+        if ($slug === $current_slug) continue;
+        if (!$tool['is_active']) continue;
+        if ($category !== null && $tool['category'] !== $category) continue;
+
+        $related[] = [
+            'slug' => $slug,
+            'name' => $tool['name']
+        ];
+
+        if (count($related) >= $limit) break;
+    }
+
+    return $related;
+}
+
 // =============================================================================
 // FUTURE SETTINGS PLACEHOLDER
 // =============================================================================
