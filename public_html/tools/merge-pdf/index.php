@@ -8,6 +8,8 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../lib/pdf_engine.php';
 require_once __DIR__ . '/../../lib/usage_logger.php';
+require_once __DIR__ . '/../../lib/rate_limiter.php';
+require_once __DIR__ . '/../../lib/error_logger.php';
 require_once __DIR__ . '/../_template_tool.php';
 
 // Define tool slug
@@ -30,6 +32,9 @@ $error = null;
 
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Check rate limit (20 requests per hour per IP for this tool)
+    enforce_rate_limit($tool_slug, 20, 3600);
+
     $uploadedFiles = [];
     $startTime = microtime(true);
     $totalSizeIn = get_upload_size($_FILES);
@@ -152,6 +157,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Log failed usage
         $durationMs = calculate_duration_ms($startTime);
         log_usage($tool_slug, $fileCount, $totalSizeIn, $durationMs, 'error', $error);
+
+        // Log to centralized error logger
+        log_exception($e, $tool_slug, [
+            'file_count' => $fileCount,
+            'total_size' => $totalSizeIn,
+            'duration_ms' => $durationMs
+        ]);
 
         // Clean up any uploaded files on error
         if (!empty($uploadedFiles)) {

@@ -20,7 +20,18 @@ RewriteBase /
 # Security: Deny access to config directory
 <IfModule mod_rewrite.c>
     RewriteRule ^config/ - [F,L]
+    RewriteRule ^lib/ - [F,L]
+    RewriteRule ^cron/ - [F,L]
+    RewriteRule ^logs/ - [F,L]
 </IfModule>
+
+# Security: Deny access to uploads temp (allow only specific file types)
+<Directory "uploads/temp">
+    <FilesMatch "(?<!\.pdf)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</Directory>
 
 # Security: Deny access to hidden files
 <FilesMatch "^\.">
@@ -79,6 +90,12 @@ AddDefaultCharset UTF-8
 
     # Referrer policy
     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+
+    # Content Security Policy (adjust as needed for ads/analytics)
+    # Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://pagead2.googlesyndication.com; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https:; font-src 'self' https://cdn.jsdelivr.net; frame-src https://googleads.g.doubleclick.net;"
+
+    # Permissions Policy
+    Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
 </IfModule>
 
 # PHP settings (if allowed by hosting)
