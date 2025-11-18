@@ -7,6 +7,7 @@
 
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../lib/pdf_engine.php';
+require_once __DIR__ . '/../../lib/usage_logger.php';
 require_once __DIR__ . '/../_template_tool.php';
 
 // Define tool slug
@@ -30,6 +31,9 @@ $error = null;
 // Process form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $uploadedFiles = [];
+    $startTime = microtime(true);
+    $totalSizeIn = get_upload_size($_FILES);
+    $fileCount = get_file_count($_FILES);
 
     try {
         // Verify CSRF token
@@ -132,6 +136,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Cache-Control: private, max-age=0, must-revalidate');
         header('Pragma: public');
 
+        // Log successful usage
+        $durationMs = calculate_duration_ms($startTime);
+        log_usage($tool_slug, $fileCount, $totalSizeIn, $durationMs, 'success');
+
         // Output file and clean up
         readfile($outputPath);
         unlink($outputPath);
@@ -140,6 +148,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     } catch (Exception $e) {
         $error = $e->getMessage();
+
+        // Log failed usage
+        $durationMs = calculate_duration_ms($startTime);
+        log_usage($tool_slug, $fileCount, $totalSizeIn, $durationMs, 'error', $error);
 
         // Clean up any uploaded files on error
         if (!empty($uploadedFiles)) {
@@ -154,6 +166,64 @@ $errorHtml = '';
 if ($error) {
     $errorHtml = '<div class="message message-error">' . htmlspecialchars($error, ENT_QUOTES, 'UTF-8') . '</div>';
 }
+
+// Handle feedback messages
+$feedbackMessage = '';
+if (isset($_GET['feedback'])) {
+    if ($_GET['feedback'] === 'success') {
+        $feedbackMessage = '<div class="message message-success">Thank you for your feedback!</div>';
+    } elseif ($_GET['feedback'] === 'error') {
+        $reason = $_GET['reason'] ?? 'unknown';
+        $errorMessages = [
+            'empty' => 'Please enter a message.',
+            'short' => 'Message must be at least 10 characters.',
+            'email' => 'Please enter a valid email address.',
+            'db' => 'Failed to save feedback. Please try again.',
+            'unknown' => 'An error occurred. Please try again.'
+        ];
+        $feedbackMessage = '<div class="message message-error">' . ($errorMessages[$reason] ?? $errorMessages['unknown']) . '</div>';
+    }
+}
+
+// Feedback form HTML
+$feedbackFormHtml = '
+<div class="feedback-section" style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #e0e0e0;">
+    <h3 style="margin-bottom: 1rem;">Help Us Improve</h3>
+    <p style="color: #666; margin-bottom: 1rem;">Found a bug or have a suggestion? Let us know!</p>
+    ' . $feedbackMessage . '
+    <form action="/feedback-submit.php" method="POST" class="feedback-form">
+        <input type="hidden" name="tool_slug" value="' . htmlspecialchars($tool_slug, ENT_QUOTES, 'UTF-8') . '">
+
+        <div style="margin-bottom: 1rem;">
+            <label for="feedback_type" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Type</label>
+            <select name="feedback_type" id="feedback_type" style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+                <option value="bug">Bug Report</option>
+                <option value="idea">Feature Suggestion</option>
+                <option value="question">Question</option>
+                <option value="other" selected>Other</option>
+            </select>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+            <label for="feedback_message" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Message *</label>
+            <textarea name="message" id="feedback_message" rows="4" required minlength="10"
+                      placeholder="Describe your issue or suggestion..."
+                      style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"></textarea>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
+            <label for="feedback_email" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Email (optional)</label>
+            <input type="email" name="email" id="feedback_email"
+                   placeholder="your@email.com"
+                   style="width: 100%; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px;">
+            <small style="color: #666;">We\'ll only use this to follow up on your feedback.</small>
+        </div>
+
+        <button type="submit" style="background: #4CAF50; color: white; padding: 0.75rem 1.5rem; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem;">
+            Send Feedback
+        </button>
+    </form>
+</div>';
 
 // Tool configuration
 $config = [
@@ -292,7 +362,10 @@ $config = [
     ],
 
     // Related Tools - dynamically loaded from registry
-    'related_tools' => get_related_tools($tool_slug)
+    'related_tools' => get_related_tools($tool_slug),
+
+    // Feedback Form
+    'custom_footer_html' => $feedbackFormHtml
 ];
 
 // Render the tool page

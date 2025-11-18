@@ -58,6 +58,7 @@ function render_tool_page(array $config): void
         'custom_head_html' => '',
         'custom_form_html' => '',
         'custom_scripts_html' => '',
+        'custom_footer_html' => '',
         'og_image_url' => '',
         'author_name' => 'PDF Tools Team',
         'publish_date' => date('c'),
@@ -301,6 +302,13 @@ function render_tool_page(array $config): void
                     </a>
                     <?php endforeach; ?>
                 </div>
+            </section>
+            <?php endif; ?>
+
+            <!-- Custom Footer Content (e.g., Feedback Form) -->
+            <?php if (!empty($custom_footer_html)): ?>
+            <section class="content-section custom-footer-section">
+                <?php echo $custom_footer_html; ?>
             </section>
             <?php endif; ?>
 
