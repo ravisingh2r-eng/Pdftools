@@ -1072,6 +1072,217 @@ class PDFEngine
         }
     }
 
+    /**
+     * Remove metadata from PDF
+     *
+     * Rebuilds the PDF without any metadata (author, creator, etc.)
+     *
+     * @param string $filePath   Path to the source PDF file
+     * @param string $outputPath Path for the output file
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws InvalidArgumentException If file doesn't exist
+     * @throws Exception On PDF processing errors
+     */
+    public function remove_metadata(string $filePath, string $outputPath): bool
+    {
+        // Validate input file
+        if (!file_exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
+        }
+
+        if (!$this->is_valid_pdf($filePath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$filePath}");
+        }
+
+        try {
+            // Create PDF without metadata
+            $pdf = new Fpdi();
+
+            // Don't set any metadata - leave it blank
+            $pdf->SetCreator('');
+            $pdf->SetAuthor('');
+            $pdf->SetTitle('');
+            $pdf->SetSubject('');
+            $pdf->SetKeywords('');
+
+            $pageCount = $pdf->setSourceFile($filePath);
+
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId);
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (PdfParserException $e) {
+            throw new Exception("PDF parsing error: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Remove metadata failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Remove blank pages from PDF
+     *
+     * Detects and removes pages with minimal or no content.
+     *
+     * @param string $filePath   Path to the source PDF file
+     * @param string $outputPath Path for the output file
+     * @param int    $threshold  Content threshold in bytes (default: 500)
+     *
+     * @return array ['success' => bool, 'removed' => int, 'remaining' => int]
+     *
+     * @throws InvalidArgumentException If file doesn't exist
+     * @throws Exception On PDF processing errors
+     */
+    public function remove_blank_pages(string $filePath, string $outputPath, int $threshold = 500): array
+    {
+        // Validate input file
+        if (!file_exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
+        }
+
+        if (!$this->is_valid_pdf($filePath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$filePath}");
+        }
+
+        try {
+            // First pass: identify blank pages
+            $blankPages = [];
+            $sourcePdf = new Fpdi();
+            $pageCount = $sourcePdf->setSourceFile($filePath);
+
+            // Read PDF file to analyze content
+            $content = file_get_contents($filePath);
+
+            // Simple heuristic: check each page by re-importing and measuring size
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                $testPdf = new Fpdi();
+                $testPdf->setSourceFile($filePath);
+                $templateId = $testPdf->importPage($pageNo);
+                $size = $testPdf->getTemplateSize($templateId);
+
+                $testPdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $testPdf->useTemplate($templateId);
+
+                // Output to string and check size
+                $pageContent = $testPdf->Output('S');
+
+                // Estimate content size (subtract PDF overhead ~500 bytes)
+                $contentSize = strlen($pageContent) - 500;
+
+                if ($contentSize < $threshold) {
+                    $blankPages[] = $pageNo;
+                }
+            }
+
+            // Ensure at least one page remains
+            $nonBlankCount = $pageCount - count($blankPages);
+            if ($nonBlankCount < 1) {
+                // Keep the first page if all are "blank"
+                array_shift($blankPages);
+            }
+
+            // Second pass: create PDF without blank pages
+            $pdf = new Fpdi();
+            $pdf->setSourceFile($filePath);
+
+            $pagesKept = 0;
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                if (in_array($pageNo, $blankPages)) {
+                    continue;
+                }
+
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId);
+                $pagesKept++;
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return [
+                'success' => file_exists($outputPath),
+                'removed' => count($blankPages),
+                'remaining' => $pagesKept
+            ];
+
+        } catch (PdfParserException $e) {
+            throw new Exception("PDF parsing error: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Remove blank pages failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Flatten PDF (remove annotations, form fields, layers)
+     *
+     * Re-imports the PDF to flatten all interactive elements.
+     * FPDI doesn't import annotations, so this effectively flattens them.
+     *
+     * @param string $filePath   Path to the source PDF file
+     * @param string $outputPath Path for the output file
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws InvalidArgumentException If file doesn't exist
+     * @throws Exception On PDF processing errors
+     */
+    public function flatten_pdf(string $filePath, string $outputPath): bool
+    {
+        // Validate input file
+        if (!file_exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
+        }
+
+        if (!$this->is_valid_pdf($filePath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$filePath}");
+        }
+
+        try {
+            // Create flattened PDF - FPDI naturally flattens by not importing
+            // annotations, form fields, or interactive elements
+            $pdf = new Fpdi();
+
+            $pageCount = $pdf->setSourceFile($filePath);
+
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId);
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (PdfParserException $e) {
+            throw new Exception("PDF parsing error: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Flatten PDF failed: " . $e->getMessage());
+        }
+    }
+
     // =========================================================================
     // UTILITY METHODS
     // =========================================================================
@@ -1389,4 +1600,47 @@ function pdf_add_page_numbers(string $filePath, string $outputPath, array $optio
 {
     $engine = new PDFEngine();
     return $engine->add_page_numbers($filePath, $outputPath, $options);
+}
+
+/**
+ * Quick remove metadata function
+ *
+ * @param string $filePath   Input file path
+ * @param string $outputPath Output file path
+ *
+ * @return bool Success status
+ */
+function pdf_remove_metadata(string $filePath, string $outputPath): bool
+{
+    $engine = new PDFEngine();
+    return $engine->remove_metadata($filePath, $outputPath);
+}
+
+/**
+ * Quick remove blank pages function
+ *
+ * @param string $filePath   Input file path
+ * @param string $outputPath Output file path
+ * @param int    $threshold  Content threshold
+ *
+ * @return array Result with removed count
+ */
+function pdf_remove_blank_pages(string $filePath, string $outputPath, int $threshold = 500): array
+{
+    $engine = new PDFEngine();
+    return $engine->remove_blank_pages($filePath, $outputPath, $threshold);
+}
+
+/**
+ * Quick flatten PDF function
+ *
+ * @param string $filePath   Input file path
+ * @param string $outputPath Output file path
+ *
+ * @return bool Success status
+ */
+function pdf_flatten(string $filePath, string $outputPath): bool
+{
+    $engine = new PDFEngine();
+    return $engine->flatten_pdf($filePath, $outputPath);
 }
