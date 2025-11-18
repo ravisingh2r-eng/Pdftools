@@ -612,4 +612,60 @@ return [
         'is_featured' => false,
         'sort_order' => 37,
     ],
+
+    // =========================================================================
+    // OFFICE DOCUMENT CONVERSION TOOLS
+    // =========================================================================
+
+    'word-to-pdf' => [
+        'name' => 'Word to PDF',
+        'category' => 'convert',
+        'icon' => '📄',
+        'color' => '#2196F3',
+        'short_description' => 'Convert Word documents to PDF.',
+        'long_description' => 'Convert Microsoft Word documents (DOCX, DOC) to PDF format with basic formatting preservation.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => true,
+        'sort_order' => 38,
+    ],
+
+    'ppt-to-pdf' => [
+        'name' => 'PowerPoint to PDF',
+        'category' => 'convert',
+        'icon' => '📊',
+        'color' => '#FF5722',
+        'short_description' => 'Convert PowerPoint presentations to PDF.',
+        'long_description' => 'Convert PPTX/PPT presentations to PDF with text content from each slide on separate pages.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => true,
+        'sort_order' => 39,
+    ],
+
+    'excel-to-pdf' => [
+        'name' => 'Excel to PDF',
+        'category' => 'convert',
+        'icon' => '📈',
+        'color' => '#4CAF50',
+        'short_description' => 'Convert Excel spreadsheets to PDF.',
+        'long_description' => 'Convert XLSX, XLS, and CSV files to PDF tables with automatic formatting and page breaks.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => true,
+        'sort_order' => 40,
+    ],
+
+    'text-doc-to-pdf' => [
+        'name' => 'RTF/ODT to PDF',
+        'category' => 'convert',
+        'icon' => '📝',
+        'color' => '#9C27B0',
+        'short_description' => 'Convert RTF and ODT documents to PDF.',
+        'long_description' => 'Convert RTF (Rich Text) and ODT (OpenDocument) files to PDF with best-effort text extraction.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 41,
+    ],
 ];
