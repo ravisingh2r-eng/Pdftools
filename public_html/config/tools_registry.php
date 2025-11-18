@@ -668,4 +668,73 @@ return [
         'is_featured' => false,
         'sort_order' => 41,
     ],
+
+    // =========================================================================
+    // PDF UTILITY TOOLS
+    // =========================================================================
+
+    'dark-mode-pdf' => [
+        'name' => 'Dark Mode PDF',
+        'category' => 'edit',
+        'icon' => '🌙',
+        'color' => '#424242',
+        'short_description' => 'Convert PDF to dark mode for easier reading.',
+        'long_description' => 'Apply a dark overlay to your PDF pages for reduced eye strain. Choose from soft, normal, or strong intensity levels.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 42,
+    ],
+
+    'clean-light-pdf' => [
+        'name' => 'Clean/Light PDF',
+        'category' => 'edit',
+        'icon' => '☀️',
+        'color' => '#FFC107',
+        'short_description' => 'Clean up PDF with white background.',
+        'long_description' => 'Normalize your PDF with a clean white background. Great for scanned documents or PDFs with colored backgrounds.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 43,
+    ],
+
+    'remove-annotations' => [
+        'name' => 'Remove Annotations',
+        'category' => 'edit',
+        'icon' => '🧹',
+        'color' => '#9E9E9E',
+        'short_description' => 'Remove comments and annotations from PDF.',
+        'long_description' => 'Strip all annotations, comments, sticky notes, and markup from your PDF. Create a clean copy without any review marks.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 44,
+    ],
+
+    'extract-text' => [
+        'name' => 'Extract Text',
+        'category' => 'advanced',
+        'icon' => '📄',
+        'color' => '#3F51B5',
+        'short_description' => 'Extract all text content from PDF.',
+        'long_description' => 'Extract text from PDF documents without OCR. Works with PDFs that contain embedded text, not scanned images.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 45,
+    ],
+
+    'extract-links' => [
+        'name' => 'Extract Links',
+        'category' => 'advanced',
+        'icon' => '🔗',
+        'color' => '#2196F3',
+        'short_description' => 'Extract all URLs and hyperlinks from PDF.',
+        'long_description' => 'Find and extract all clickable links from your PDF including web URLs, email addresses, and other hyperlinks.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 46,
+    ],
 ];
