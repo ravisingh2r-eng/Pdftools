@@ -86,6 +86,58 @@ return [
         'sort_order' => 5,
     ],
 
+    'split-pdf-range' => [
+        'name' => 'Split PDF by Range',
+        'category' => 'basic',
+        'icon' => '✂️',
+        'color' => '#2196F3',
+        'short_description' => 'Extract specific page ranges from a PDF.',
+        'long_description' => 'Split your PDF by specifying page ranges like 1-3, 5-7. Each range becomes a separate PDF file.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 6,
+    ],
+
+    'split-pdf-pages' => [
+        'name' => 'Split PDF into Pages',
+        'category' => 'basic',
+        'icon' => '📄',
+        'color' => '#00BCD4',
+        'short_description' => 'Split PDF into individual single-page files.',
+        'long_description' => 'Separate every page of your PDF into its own file. Perfect for extracting all pages at once.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 7,
+    ],
+
+    'reorder-pdf' => [
+        'name' => 'Reorder PDF Pages',
+        'category' => 'edit',
+        'icon' => '🔀',
+        'color' => '#3F51B5',
+        'short_description' => 'Rearrange PDF pages in any order.',
+        'long_description' => 'Reorganize pages in your PDF. Move pages around, duplicate them, or create a completely new arrangement.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 8,
+    ],
+
+    'delete-pdf-pages' => [
+        'name' => 'Delete PDF Pages',
+        'category' => 'edit',
+        'icon' => '🗑️',
+        'color' => '#607D8B',
+        'short_description' => 'Remove unwanted pages from your PDF.',
+        'long_description' => 'Delete specific pages from your PDF document. Specify individual pages or ranges to remove.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 9,
+    ],
+
     'delete-pages' => [
         'name' => 'Delete Pages',
         'category' => 'edit',

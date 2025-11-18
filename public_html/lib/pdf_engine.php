@@ -507,6 +507,238 @@ class PDFEngine
         }
     }
 
+    /**
+     * Reorder pages in a PDF file
+     *
+     * Rearranges pages according to the specified order.
+     *
+     * @param string $filePath   Path to the source PDF file
+     * @param array  $pageOrder  Array of page numbers in desired order (1-indexed)
+     *                           e.g., [3, 1, 2, 5, 4] reorders pages
+     * @param string $outputPath Path for the reordered output file
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws InvalidArgumentException If file doesn't exist or page order is invalid
+     * @throws Exception On PDF processing errors
+     *
+     * @example
+     * $engine = new PDFEngine();
+     * $result = $engine->reorder_pdf(
+     *     '/path/to/input.pdf',
+     *     [3, 1, 2, 5, 4],  // New page order
+     *     '/path/to/reordered.pdf'
+     * );
+     */
+    public function reorder_pdf(string $filePath, array $pageOrder, string $outputPath): bool
+    {
+        // Validate input file
+        if (!file_exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
+        }
+
+        if (!$this->is_valid_pdf($filePath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$filePath}");
+        }
+
+        if (empty($pageOrder)) {
+            throw new InvalidArgumentException("Page order array cannot be empty");
+        }
+
+        try {
+            $pdf = new Fpdi();
+            $totalPages = $pdf->setSourceFile($filePath);
+
+            // Validate page numbers
+            foreach ($pageOrder as $pageNo) {
+                if (!is_int($pageNo) || $pageNo < 1 || $pageNo > $totalPages) {
+                    throw new InvalidArgumentException(
+                        "Invalid page number: {$pageNo}. Must be between 1 and {$totalPages}"
+                    );
+                }
+            }
+
+            // Import pages in the specified order
+            foreach ($pageOrder as $pageNo) {
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId);
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (PdfParserException $e) {
+            throw new Exception("PDF parsing error: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Reorder failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Delete specific pages from a PDF file
+     *
+     * Removes the specified pages and outputs the remaining pages.
+     *
+     * @param string $filePath      Path to the source PDF file
+     * @param array  $pagesToDelete Array of page numbers to remove (1-indexed)
+     * @param string $outputPath    Path for the output file
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws InvalidArgumentException If file doesn't exist or pages are invalid
+     * @throws Exception On PDF processing errors
+     *
+     * @example
+     * $engine = new PDFEngine();
+     * $result = $engine->delete_pages(
+     *     '/path/to/input.pdf',
+     *     [2, 4, 7],  // Pages to remove
+     *     '/path/to/output.pdf'
+     * );
+     */
+    public function delete_pages(string $filePath, array $pagesToDelete, string $outputPath): bool
+    {
+        // Validate input file
+        if (!file_exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
+        }
+
+        if (!$this->is_valid_pdf($filePath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$filePath}");
+        }
+
+        if (empty($pagesToDelete)) {
+            throw new InvalidArgumentException("Pages to delete array cannot be empty");
+        }
+
+        try {
+            $pdf = new Fpdi();
+            $totalPages = $pdf->setSourceFile($filePath);
+
+            // Validate and normalize page numbers
+            $pagesToDelete = array_map('intval', $pagesToDelete);
+            $pagesToDelete = array_unique($pagesToDelete);
+
+            foreach ($pagesToDelete as $pageNo) {
+                if ($pageNo < 1 || $pageNo > $totalPages) {
+                    throw new InvalidArgumentException(
+                        "Invalid page number: {$pageNo}. Must be between 1 and {$totalPages}"
+                    );
+                }
+            }
+
+            // Check if we're deleting all pages
+            if (count($pagesToDelete) >= $totalPages) {
+                throw new InvalidArgumentException(
+                    "Cannot delete all pages. At least one page must remain."
+                );
+            }
+
+            // Import pages that are NOT in the delete list
+            for ($pageNo = 1; $pageNo <= $totalPages; $pageNo++) {
+                if (in_array($pageNo, $pagesToDelete)) {
+                    continue; // Skip this page
+                }
+
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId);
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (PdfParserException $e) {
+            throw new Exception("PDF parsing error: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Delete pages failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Split PDF into individual single-page files
+     *
+     * Creates a separate PDF file for each page.
+     *
+     * @param string $filePath  Path to the source PDF file
+     * @param string $outputDir Directory to save the split files
+     *
+     * @return array Array of paths to the created files
+     *
+     * @throws InvalidArgumentException If file doesn't exist
+     * @throws Exception On PDF processing errors
+     *
+     * @example
+     * $engine = new PDFEngine();
+     * $files = $engine->split_all_pages(
+     *     '/path/to/source.pdf',
+     *     '/path/to/output/'
+     * );
+     * // Returns: ['/path/to/output/page_1.pdf', '/path/to/output/page_2.pdf', ...]
+     */
+    public function split_all_pages(string $filePath, string $outputDir): array
+    {
+        // Validate input file
+        if (!file_exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
+        }
+
+        if (!$this->is_valid_pdf($filePath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$filePath}");
+        }
+
+        // Ensure output directory exists
+        $this->ensure_directory($outputDir);
+
+        // Get total page count
+        $sourcePdf = new Fpdi();
+        $totalPages = $sourcePdf->setSourceFile($filePath);
+
+        $outputFiles = [];
+
+        try {
+            // Create a file for each page
+            for ($pageNo = 1; $pageNo <= $totalPages; $pageNo++) {
+                $pdf = new Fpdi();
+                $pdf->setSourceFile($filePath);
+
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId);
+
+                // Generate output filename
+                $outputPath = rtrim($outputDir, '/') . '/page_' . $pageNo . '.pdf';
+                $pdf->Output('F', $outputPath);
+
+                if (file_exists($outputPath)) {
+                    $outputFiles[] = $outputPath;
+                }
+            }
+
+            return $outputFiles;
+
+        } catch (PdfParserException $e) {
+            throw new Exception("PDF parsing error: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Split all pages failed: " . $e->getMessage());
+        }
+    }
+
     // =========================================================================
     // UTILITY METHODS
     // =========================================================================
@@ -749,4 +981,48 @@ function pdf_compress(string $filePath, string $outputPath, string $mode = 'medi
 {
     $engine = new PDFEngine();
     return $engine->compress_pdf_basic($filePath, $outputPath, $mode);
+}
+
+/**
+ * Quick reorder PDF pages function
+ *
+ * @param string $filePath   Input file path
+ * @param array  $pageOrder  Page order array
+ * @param string $outputPath Output file path
+ *
+ * @return bool Success status
+ */
+function pdf_reorder(string $filePath, array $pageOrder, string $outputPath): bool
+{
+    $engine = new PDFEngine();
+    return $engine->reorder_pdf($filePath, $pageOrder, $outputPath);
+}
+
+/**
+ * Quick delete PDF pages function
+ *
+ * @param string $filePath      Input file path
+ * @param array  $pagesToDelete Pages to delete
+ * @param string $outputPath    Output file path
+ *
+ * @return bool Success status
+ */
+function pdf_delete_pages(string $filePath, array $pagesToDelete, string $outputPath): bool
+{
+    $engine = new PDFEngine();
+    return $engine->delete_pages($filePath, $pagesToDelete, $outputPath);
+}
+
+/**
+ * Quick split all pages function
+ *
+ * @param string $filePath  Input file path
+ * @param string $outputDir Output directory
+ *
+ * @return array Created file paths
+ */
+function pdf_split_all(string $filePath, string $outputDir): array
+{
+    $engine = new PDFEngine();
+    return $engine->split_all_pages($filePath, $outputDir);
 }
