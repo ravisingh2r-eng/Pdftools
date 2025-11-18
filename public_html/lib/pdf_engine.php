@@ -739,6 +739,339 @@ class PDFEngine
         }
     }
 
+    /**
+     * Add text watermark to PDF pages
+     *
+     * Overlays text on each page of the PDF.
+     *
+     * @param string $filePath   Path to the source PDF file
+     * @param string $text       Watermark text
+     * @param string $outputPath Path for the output file
+     * @param array  $options    Options: position, opacity, fontSize, angle, color
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws InvalidArgumentException If file doesn't exist
+     * @throws Exception On PDF processing errors
+     */
+    public function add_watermark(
+        string $filePath,
+        string $text,
+        string $outputPath,
+        array $options = []
+    ): bool {
+        // Validate input file
+        if (!file_exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
+        }
+
+        if (!$this->is_valid_pdf($filePath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$filePath}");
+        }
+
+        if (empty($text)) {
+            throw new InvalidArgumentException("Watermark text cannot be empty");
+        }
+
+        // Default options
+        $defaults = [
+            'position' => 'center',      // center, top-left, top-right, bottom-left, bottom-right
+            'opacity' => 0.3,            // 0.0 to 1.0
+            'fontSize' => 40,
+            'angle' => 45,               // Rotation angle in degrees
+            'color' => [128, 128, 128],  // RGB color
+        ];
+
+        $options = array_merge($defaults, $options);
+
+        try {
+            // Create custom FPDI class with watermark support
+            $pdf = new class extends Fpdi {
+                public function addWatermarkText(
+                    string $text,
+                    float $x,
+                    float $y,
+                    int $fontSize,
+                    float $angle,
+                    array $color,
+                    float $opacity
+                ): void {
+                    // Set transparency
+                    $this->SetAlpha($opacity);
+
+                    // Set font and color
+                    $this->SetFont('Helvetica', 'B', $fontSize);
+                    $this->SetTextColor($color[0], $color[1], $color[2]);
+
+                    // Rotate and position text
+                    $this->Rotate($angle, $x, $y);
+                    $this->Text($x, $y, $text);
+                    $this->Rotate(0);
+
+                    // Reset transparency
+                    $this->SetAlpha(1);
+                }
+
+                // Alpha transparency support
+                protected $extgstates = [];
+
+                public function SetAlpha($alpha, $bm = 'Normal'): void
+                {
+                    $gs = $this->AddExtGState(['ca' => $alpha, 'CA' => $alpha, 'BM' => '/' . $bm]);
+                    $this->SetExtGState($gs);
+                }
+
+                public function AddExtGState($parms)
+                {
+                    $n = count($this->extgstates) + 1;
+                    $this->extgstates[$n]['parms'] = $parms;
+                    return $n;
+                }
+
+                public function SetExtGState($gs): void
+                {
+                    $this->_out(sprintf('/GS%d gs', $gs));
+                }
+
+                public function _enddoc(): void
+                {
+                    if (!empty($this->extgstates) && count($this->extgstates) > 0) {
+                        foreach ($this->extgstates as $k => $extgstate) {
+                            $this->extgstates[$k]['n'] = $this->n + 1;
+                            $this->_newobj();
+                            $this->_put('<</Type /ExtGState');
+                            $parms = $this->extgstates[$k]['parms'];
+                            $this->_put(sprintf('/ca %.3F', $parms['ca']));
+                            $this->_put(sprintf('/CA %.3F', $parms['CA']));
+                            $this->_put('/BM ' . $parms['BM']);
+                            $this->_put('>>');
+                            $this->_put('endobj');
+                        }
+                    }
+                    parent::_enddoc();
+                }
+
+                public function _putresourcedict(): void
+                {
+                    parent::_putresourcedict();
+                    if (!empty($this->extgstates)) {
+                        $this->_put('/ExtGState <<');
+                        foreach ($this->extgstates as $k => $extgstate) {
+                            $this->_put('/GS' . $k . ' ' . $extgstate['n'] . ' 0 R');
+                        }
+                        $this->_put('>>');
+                    }
+                }
+
+                public function Rotate($angle, $x = -1, $y = -1): void
+                {
+                    if ($x == -1) $x = $this->x;
+                    if ($y == -1) $y = $this->y;
+                    if ($this->angle != 0) {
+                        $this->_out('Q');
+                    }
+                    $this->angle = $angle;
+                    if ($angle != 0) {
+                        $angle *= M_PI / 180;
+                        $c = cos($angle);
+                        $s = sin($angle);
+                        $cx = $x * $this->k;
+                        $cy = ($this->h - $y) * $this->k;
+                        $this->_out(sprintf(
+                            'q %.5F %.5F %.5F %.5F %.2F %.2F cm 1 0 0 1 %.2F %.2F cm',
+                            $c, $s, -$s, $c, $cx, $cy, -$cx, -$cy
+                        ));
+                    }
+                }
+
+                protected $angle = 0;
+
+                public function _endpage(): void
+                {
+                    if ($this->angle != 0) {
+                        $this->angle = 0;
+                        $this->_out('Q');
+                    }
+                    parent::_endpage();
+                }
+            };
+
+            $pageCount = $pdf->setSourceFile($filePath);
+
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId);
+
+                // Calculate watermark position
+                $pageWidth = $size['width'];
+                $pageHeight = $size['height'];
+
+                switch ($options['position']) {
+                    case 'top-left':
+                        $x = 20;
+                        $y = 30;
+                        break;
+                    case 'top-right':
+                        $x = $pageWidth - 60;
+                        $y = 30;
+                        break;
+                    case 'bottom-left':
+                        $x = 20;
+                        $y = $pageHeight - 20;
+                        break;
+                    case 'bottom-right':
+                        $x = $pageWidth - 60;
+                        $y = $pageHeight - 20;
+                        break;
+                    case 'center':
+                    default:
+                        $x = $pageWidth / 2 - 20;
+                        $y = $pageHeight / 2;
+                        break;
+                }
+
+                $pdf->addWatermarkText(
+                    $text,
+                    $x,
+                    $y,
+                    $options['fontSize'],
+                    $options['angle'],
+                    $options['color'],
+                    $options['opacity']
+                );
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (PdfParserException $e) {
+            throw new Exception("PDF parsing error: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Watermark failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Add page numbers to PDF
+     *
+     * Adds page numbers to each page of the PDF.
+     *
+     * @param string $filePath   Path to the source PDF file
+     * @param string $outputPath Path for the output file
+     * @param array  $options    Options: position, startNumber, format, fontSize
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws InvalidArgumentException If file doesn't exist
+     * @throws Exception On PDF processing errors
+     */
+    public function add_page_numbers(
+        string $filePath,
+        string $outputPath,
+        array $options = []
+    ): bool {
+        // Validate input file
+        if (!file_exists($filePath)) {
+            throw new InvalidArgumentException("File not found: {$filePath}");
+        }
+
+        if (!$this->is_valid_pdf($filePath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$filePath}");
+        }
+
+        // Default options
+        $defaults = [
+            'position' => 'bottom-center',  // bottom-center, bottom-left, bottom-right, top-center, top-left, top-right
+            'startNumber' => 1,
+            'format' => 'Page {n}',         // {n} = page number, {total} = total pages
+            'fontSize' => 10,
+            'color' => [0, 0, 0],           // RGB color (black)
+            'margin' => 20,
+        ];
+
+        $options = array_merge($defaults, $options);
+
+        try {
+            $pdf = new Fpdi();
+            $pageCount = $pdf->setSourceFile($filePath);
+
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $pdf->AddPage($size['orientation'], [$size['width'], $size['height']]);
+                $pdf->useTemplate($templateId);
+
+                // Calculate page number
+                $currentNumber = $options['startNumber'] + $pageNo - 1;
+                $text = str_replace(
+                    ['{n}', '{total}'],
+                    [$currentNumber, $pageCount],
+                    $options['format']
+                );
+
+                // Set font
+                $pdf->SetFont('Helvetica', '', $options['fontSize']);
+                $pdf->SetTextColor($options['color'][0], $options['color'][1], $options['color'][2]);
+
+                // Calculate position
+                $pageWidth = $size['width'];
+                $pageHeight = $size['height'];
+                $textWidth = $pdf->GetStringWidth($text);
+                $margin = $options['margin'];
+
+                switch ($options['position']) {
+                    case 'top-left':
+                        $x = $margin;
+                        $y = $margin;
+                        break;
+                    case 'top-center':
+                        $x = ($pageWidth - $textWidth) / 2;
+                        $y = $margin;
+                        break;
+                    case 'top-right':
+                        $x = $pageWidth - $textWidth - $margin;
+                        $y = $margin;
+                        break;
+                    case 'bottom-left':
+                        $x = $margin;
+                        $y = $pageHeight - $margin;
+                        break;
+                    case 'bottom-right':
+                        $x = $pageWidth - $textWidth - $margin;
+                        $y = $pageHeight - $margin;
+                        break;
+                    case 'bottom-center':
+                    default:
+                        $x = ($pageWidth - $textWidth) / 2;
+                        $y = $pageHeight - $margin;
+                        break;
+                }
+
+                $pdf->Text($x, $y, $text);
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (PdfParserException $e) {
+            throw new Exception("PDF parsing error: " . $e->getMessage());
+        } catch (Exception $e) {
+            throw new Exception("Add page numbers failed: " . $e->getMessage());
+        }
+    }
+
     // =========================================================================
     // UTILITY METHODS
     // =========================================================================
@@ -1025,4 +1358,35 @@ function pdf_split_all(string $filePath, string $outputDir): array
 {
     $engine = new PDFEngine();
     return $engine->split_all_pages($filePath, $outputDir);
+}
+
+/**
+ * Quick add watermark function
+ *
+ * @param string $filePath   Input file path
+ * @param string $text       Watermark text
+ * @param string $outputPath Output file path
+ * @param array  $options    Watermark options
+ *
+ * @return bool Success status
+ */
+function pdf_add_watermark(string $filePath, string $text, string $outputPath, array $options = []): bool
+{
+    $engine = new PDFEngine();
+    return $engine->add_watermark($filePath, $text, $outputPath, $options);
+}
+
+/**
+ * Quick add page numbers function
+ *
+ * @param string $filePath   Input file path
+ * @param string $outputPath Output file path
+ * @param array  $options    Page number options
+ *
+ * @return bool Success status
+ */
+function pdf_add_page_numbers(string $filePath, string $outputPath, array $options = []): bool
+{
+    $engine = new PDFEngine();
+    return $engine->add_page_numbers($filePath, $outputPath, $options);
 }
