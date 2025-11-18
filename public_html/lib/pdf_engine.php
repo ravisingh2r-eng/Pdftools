@@ -1942,6 +1942,408 @@ class PDFEngine
     }
 
     // =========================================================================
+    // CONTENT CONVERSION OPERATIONS
+    // =========================================================================
+
+    /**
+     * Convert plain text to PDF
+     *
+     * @param string $text       Text content to convert
+     * @param string $outputPath Path for the output PDF file
+     * @param array  $options    Options: fontSize, fontFamily, lineHeight
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws Exception On processing errors
+     */
+    public function txt_to_pdf(string $text, string $outputPath, array $options = []): bool
+    {
+        // Default options
+        $defaults = [
+            'fontSize' => 12,
+            'fontFamily' => 'Courier',
+            'lineHeight' => 5,
+            'margin' => 15,
+            'pageSize' => 'A4',
+        ];
+
+        $options = array_merge($defaults, $options);
+
+        try {
+            $pdf = new \FPDF();
+            $pdf->SetMargins($options['margin'], $options['margin']);
+            $pdf->AddPage('P', $options['pageSize']);
+            $pdf->SetFont($options['fontFamily'], '', $options['fontSize']);
+
+            // Split text into lines
+            $lines = explode("\n", $text);
+
+            foreach ($lines as $line) {
+                // Handle empty lines
+                if (trim($line) === '') {
+                    $pdf->Ln($options['lineHeight']);
+                    continue;
+                }
+
+                // Use MultiCell for automatic word wrapping
+                $pdf->MultiCell(0, $options['lineHeight'], $line);
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (Exception $e) {
+            throw new Exception("TXT to PDF failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Convert simple HTML to PDF
+     *
+     * Supports: <p>, <b>, <i>, <u>, <br>, <ul>, <ol>, <li>, <h1>-<h6>
+     *
+     * @param string $html       HTML content to convert
+     * @param string $outputPath Path for the output PDF file
+     * @param array  $options    Options: fontSize, margin
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws Exception On processing errors
+     */
+    public function html_to_pdf(string $html, string $outputPath, array $options = []): bool
+    {
+        // Default options
+        $defaults = [
+            'fontSize' => 12,
+            'margin' => 15,
+            'pageSize' => 'A4',
+        ];
+
+        $options = array_merge($defaults, $options);
+
+        try {
+            // Create custom PDF class with HTML support
+            $pdf = new class extends \FPDF {
+                protected $listIndent = 10;
+                protected $listCounter = 0;
+                protected $inList = false;
+                protected $listType = 'ul';
+
+                public function WriteHTML($html)
+                {
+                    // Strip unwanted tags and normalize whitespace
+                    $html = strip_tags($html, '<p><b><i><u><br><ul><ol><li><h1><h2><h3><h4><h5><h6><strong><em>');
+
+                    // Replace common entities
+                    $html = str_replace(['&nbsp;', '&amp;', '&lt;', '&gt;'], [' ', '&', '<', '>'], $html);
+
+                    // Parse HTML
+                    $html = preg_replace('/\s+/', ' ', $html);
+
+                    // Process tags
+                    $parts = preg_split('/<(.+?)>/s', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+                    foreach ($parts as $i => $part) {
+                        if ($i % 2 == 0) {
+                            // Text content
+                            if (trim($part) !== '') {
+                                if ($this->inList) {
+                                    $this->SetX($this->GetX() + $this->listIndent);
+                                }
+                                $this->Write(5, trim($part));
+                            }
+                        } else {
+                            // Tag
+                            $this->ProcessTag($part);
+                        }
+                    }
+                }
+
+                protected function ProcessTag($tag)
+                {
+                    $tag = strtolower(trim($tag));
+                    $isClosing = (substr($tag, 0, 1) === '/');
+                    $tagName = $isClosing ? substr($tag, 1) : $tag;
+                    $tagName = preg_replace('/\s.*/', '', $tagName); // Remove attributes
+
+                    switch ($tagName) {
+                        case 'b':
+                        case 'strong':
+                            $this->SetFont('', $isClosing ? '' : 'B');
+                            break;
+                        case 'i':
+                        case 'em':
+                            $this->SetFont('', $isClosing ? '' : 'I');
+                            break;
+                        case 'u':
+                            $this->SetFont('', $isClosing ? '' : 'U');
+                            break;
+                        case 'br':
+                            $this->Ln(5);
+                            break;
+                        case 'p':
+                            if ($isClosing) {
+                                $this->Ln(8);
+                            }
+                            break;
+                        case 'h1':
+                            if (!$isClosing) {
+                                $this->SetFont('', 'B', 24);
+                            } else {
+                                $this->SetFont('', '', 12);
+                                $this->Ln(10);
+                            }
+                            break;
+                        case 'h2':
+                            if (!$isClosing) {
+                                $this->SetFont('', 'B', 20);
+                            } else {
+                                $this->SetFont('', '', 12);
+                                $this->Ln(8);
+                            }
+                            break;
+                        case 'h3':
+                            if (!$isClosing) {
+                                $this->SetFont('', 'B', 16);
+                            } else {
+                                $this->SetFont('', '', 12);
+                                $this->Ln(6);
+                            }
+                            break;
+                        case 'h4':
+                        case 'h5':
+                        case 'h6':
+                            if (!$isClosing) {
+                                $this->SetFont('', 'B', 14);
+                            } else {
+                                $this->SetFont('', '', 12);
+                                $this->Ln(5);
+                            }
+                            break;
+                        case 'ul':
+                            $this->inList = !$isClosing;
+                            $this->listType = 'ul';
+                            if (!$isClosing) $this->Ln(3);
+                            break;
+                        case 'ol':
+                            $this->inList = !$isClosing;
+                            $this->listType = 'ol';
+                            $this->listCounter = 0;
+                            if (!$isClosing) $this->Ln(3);
+                            break;
+                        case 'li':
+                            if (!$isClosing) {
+                                $this->Ln(5);
+                                $bullet = ($this->listType === 'ul') ? chr(149) . ' ' : (++$this->listCounter) . '. ';
+                                $this->Cell($this->listIndent, 5, $bullet);
+                            }
+                            break;
+                    }
+                }
+            };
+
+            $pdf->SetMargins($options['margin'], $options['margin']);
+            $pdf->AddPage('P', $options['pageSize']);
+            $pdf->SetFont('Arial', '', $options['fontSize']);
+
+            $pdf->WriteHTML($html);
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (Exception $e) {
+            throw new Exception("HTML to PDF failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Convert Markdown to PDF
+     *
+     * @param string $markdown   Markdown content to convert
+     * @param string $outputPath Path for the output PDF file
+     * @param array  $options    Options: fontSize, margin
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws Exception On processing errors
+     */
+    public function markdown_to_pdf(string $markdown, string $outputPath, array $options = []): bool
+    {
+        // Convert markdown to simple HTML
+        $html = $this->markdown_to_html($markdown);
+
+        // Use HTML to PDF converter
+        return $this->html_to_pdf($html, $outputPath, $options);
+    }
+
+    /**
+     * Simple Markdown to HTML converter
+     *
+     * @param string $markdown Markdown text
+     *
+     * @return string HTML output
+     */
+    private function markdown_to_html(string $markdown): string
+    {
+        $html = $markdown;
+
+        // Escape HTML entities first
+        $html = htmlspecialchars($html, ENT_NOQUOTES);
+
+        // Headers (must be done before other patterns)
+        $html = preg_replace('/^######\s+(.+)$/m', '<h6>$1</h6>', $html);
+        $html = preg_replace('/^#####\s+(.+)$/m', '<h5>$1</h5>', $html);
+        $html = preg_replace('/^####\s+(.+)$/m', '<h4>$1</h4>', $html);
+        $html = preg_replace('/^###\s+(.+)$/m', '<h3>$1</h3>', $html);
+        $html = preg_replace('/^##\s+(.+)$/m', '<h2>$1</h2>', $html);
+        $html = preg_replace('/^#\s+(.+)$/m', '<h1>$1</h1>', $html);
+
+        // Bold and italic
+        $html = preg_replace('/\*\*\*(.+?)\*\*\*/s', '<b><i>$1</i></b>', $html);
+        $html = preg_replace('/\*\*(.+?)\*\*/s', '<b>$1</b>', $html);
+        $html = preg_replace('/\*(.+?)\*/s', '<i>$1</i>', $html);
+        $html = preg_replace('/___(.+?)___/s', '<b><i>$1</i></b>', $html);
+        $html = preg_replace('/__(.+?)__/s', '<b>$1</b>', $html);
+        $html = preg_replace('/_(.+?)_/s', '<i>$1</i>', $html);
+
+        // Unordered lists
+        $html = preg_replace('/^\*\s+(.+)$/m', '<li>$1</li>', $html);
+        $html = preg_replace('/^-\s+(.+)$/m', '<li>$1</li>', $html);
+        $html = preg_replace('/(<li>.*<\/li>\n?)+/s', '<ul>$0</ul>', $html);
+
+        // Ordered lists
+        $html = preg_replace('/^\d+\.\s+(.+)$/m', '<oli>$1</oli>', $html);
+        $html = preg_replace('/(<oli>.*<\/oli>\n?)+/s', '<ol>$0</ol>', $html);
+        $html = str_replace(['<oli>', '</oli>'], ['<li>', '</li>'], $html);
+
+        // Line breaks (two spaces at end of line or double newline)
+        $html = preg_replace('/  \n/', '<br>', $html);
+
+        // Paragraphs (double newlines)
+        $html = preg_replace('/\n\n+/', '</p><p>', $html);
+        $html = '<p>' . $html . '</p>';
+
+        // Clean up empty paragraphs
+        $html = preg_replace('/<p>\s*<\/p>/', '', $html);
+        $html = preg_replace('/<p>\s*<(h[1-6]|ul|ol)/', '<$1', $html);
+        $html = preg_replace('/<\/(h[1-6]|ul|ol)>\s*<\/p>/', '</$1>', $html);
+
+        return $html;
+    }
+
+    /**
+     * Convert CSV to PDF table
+     *
+     * @param string $csvContent CSV content to convert
+     * @param string $outputPath Path for the output PDF file
+     * @param array  $options    Options: hasHeader, cellPadding, fontSize
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws Exception On processing errors
+     */
+    public function csv_to_pdf(string $csvContent, string $outputPath, array $options = []): bool
+    {
+        // Default options
+        $defaults = [
+            'hasHeader' => true,
+            'cellPadding' => 3,
+            'fontSize' => 10,
+            'margin' => 10,
+            'pageSize' => 'A4',
+            'orientation' => 'P',
+            'delimiter' => ',',
+        ];
+
+        $options = array_merge($defaults, $options);
+
+        try {
+            // Parse CSV
+            $lines = explode("\n", $csvContent);
+            $rows = [];
+            $maxCols = 0;
+
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if (empty($line)) continue;
+
+                $cols = str_getcsv($line, $options['delimiter']);
+                $rows[] = $cols;
+                $maxCols = max($maxCols, count($cols));
+            }
+
+            if (empty($rows)) {
+                throw new Exception("No data found in CSV");
+            }
+
+            // Auto-detect orientation based on columns
+            $orientation = $options['orientation'];
+            if ($maxCols > 5) {
+                $orientation = 'L';
+            }
+
+            $pdf = new \FPDF($orientation, 'mm', $options['pageSize']);
+            $pdf->SetMargins($options['margin'], $options['margin']);
+            $pdf->AddPage();
+            $pdf->SetFont('Arial', '', $options['fontSize']);
+
+            // Calculate column widths
+            $pageWidth = $pdf->GetPageWidth() - (2 * $options['margin']);
+            $colWidth = $pageWidth / $maxCols;
+
+            // Draw table
+            foreach ($rows as $rowIndex => $row) {
+                // Check if we need a new page
+                if ($pdf->GetY() > $pdf->GetPageHeight() - 20) {
+                    $pdf->AddPage();
+                }
+
+                // Header row styling
+                if ($rowIndex === 0 && $options['hasHeader']) {
+                    $pdf->SetFont('Arial', 'B', $options['fontSize']);
+                    $pdf->SetFillColor(230, 230, 230);
+                    $fill = true;
+                } else {
+                    $pdf->SetFont('Arial', '', $options['fontSize']);
+                    $fill = false;
+                }
+
+                // Draw cells
+                $maxHeight = $options['cellPadding'] * 2;
+
+                // Pad row to max columns
+                while (count($row) < $maxCols) {
+                    $row[] = '';
+                }
+
+                foreach ($row as $cell) {
+                    $pdf->Cell($colWidth, $maxHeight, substr($cell, 0, 50), 1, 0, 'L', $fill);
+                }
+
+                $pdf->Ln();
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (Exception $e) {
+            throw new Exception("CSV to PDF failed: " . $e->getMessage());
+        }
+    }
+
+    // =========================================================================
     // UTILITY METHODS
     // =========================================================================
 
@@ -2378,4 +2780,64 @@ function join_images(array $imagePaths, string $outputPath, string $mode = 'vert
 {
     $engine = new PDFEngine();
     return $engine->join_images($imagePaths, $outputPath, $mode, $quality);
+}
+
+/**
+ * Quick TXT to PDF function
+ *
+ * @param string $text       Text content
+ * @param string $outputPath Output PDF path
+ * @param array  $options    Options
+ *
+ * @return bool Success status
+ */
+function txt_to_pdf(string $text, string $outputPath, array $options = []): bool
+{
+    $engine = new PDFEngine();
+    return $engine->txt_to_pdf($text, $outputPath, $options);
+}
+
+/**
+ * Quick HTML to PDF function
+ *
+ * @param string $html       HTML content
+ * @param string $outputPath Output PDF path
+ * @param array  $options    Options
+ *
+ * @return bool Success status
+ */
+function html_to_pdf(string $html, string $outputPath, array $options = []): bool
+{
+    $engine = new PDFEngine();
+    return $engine->html_to_pdf($html, $outputPath, $options);
+}
+
+/**
+ * Quick Markdown to PDF function
+ *
+ * @param string $markdown   Markdown content
+ * @param string $outputPath Output PDF path
+ * @param array  $options    Options
+ *
+ * @return bool Success status
+ */
+function markdown_to_pdf(string $markdown, string $outputPath, array $options = []): bool
+{
+    $engine = new PDFEngine();
+    return $engine->markdown_to_pdf($markdown, $outputPath, $options);
+}
+
+/**
+ * Quick CSV to PDF function
+ *
+ * @param string $csvContent CSV content
+ * @param string $outputPath Output PDF path
+ * @param array  $options    Options
+ *
+ * @return bool Success status
+ */
+function csv_to_pdf(string $csvContent, string $outputPath, array $options = []): bool
+{
+    $engine = new PDFEngine();
+    return $engine->csv_to_pdf($csvContent, $outputPath, $options);
 }

@@ -543,4 +543,73 @@ return [
         'is_featured' => false,
         'sort_order' => 32,
     ],
+
+    // =========================================================================
+    // CONTENT CONVERSION TOOLS
+    // =========================================================================
+
+    'txt-to-pdf' => [
+        'name' => 'TXT to PDF',
+        'category' => 'convert',
+        'icon' => '📝',
+        'color' => '#607D8B',
+        'short_description' => 'Convert plain text files to PDF.',
+        'long_description' => 'Convert text files or typed content to PDF documents. Customize font and size settings.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 33,
+    ],
+
+    'html-to-pdf' => [
+        'name' => 'HTML to PDF',
+        'category' => 'convert',
+        'icon' => '🌐',
+        'color' => '#FF9800',
+        'short_description' => 'Convert HTML markup to PDF.',
+        'long_description' => 'Convert HTML code to PDF with support for basic formatting tags like paragraphs, lists, and headings.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 34,
+    ],
+
+    'markdown-to-pdf' => [
+        'name' => 'Markdown to PDF',
+        'category' => 'convert',
+        'icon' => '📑',
+        'color' => '#00BCD4',
+        'short_description' => 'Convert Markdown to PDF.',
+        'long_description' => 'Convert Markdown files to PDF with support for headers, bold, italic, and lists.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 35,
+    ],
+
+    'csv-to-pdf' => [
+        'name' => 'CSV to PDF',
+        'category' => 'convert',
+        'icon' => '📊',
+        'color' => '#4CAF50',
+        'short_description' => 'Convert CSV data to PDF table.',
+        'long_description' => 'Convert CSV spreadsheet data to formatted PDF tables with headers and grid lines.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 36,
+    ],
+
+    'ppt-images-to-pdf' => [
+        'name' => 'PPT Images to PDF',
+        'category' => 'convert',
+        'icon' => '📽️',
+        'color' => '#E91E63',
+        'short_description' => 'Convert slide images to PDF.',
+        'long_description' => 'Convert PowerPoint slide screenshots to PDF presentations with each slide on a separate page.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 37,
+    ],
 ];
