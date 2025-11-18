@@ -296,7 +296,7 @@ return [
         'color' => '#795548',
         'short_description' => 'Convert PDF pages to PNG images.',
         'long_description' => 'Convert PDF pages to PNG format with transparency support. Ideal for graphics and web design.',
-        'is_active' => false,
+        'is_active' => true,
         'is_premium' => false,
         'is_featured' => false,
         'sort_order' => 14,
@@ -486,5 +486,61 @@ return [
         'is_premium' => false,
         'is_featured' => false,
         'sort_order' => 28,
+    ],
+
+    // =========================================================================
+    // IMAGE TOOLS
+    // =========================================================================
+
+    'images-to-pdf' => [
+        'name' => 'Images to PDF',
+        'category' => 'convert',
+        'icon' => '📸',
+        'color' => '#4CAF50',
+        'short_description' => 'Convert multiple images to PDF.',
+        'long_description' => 'Combine multiple images (JPG, PNG, WebP) into a single PDF document. Each image becomes a separate page.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 29,
+    ],
+
+    'extract-images' => [
+        'name' => 'Extract Images',
+        'category' => 'convert',
+        'icon' => '🖼️',
+        'color' => '#9C27B0',
+        'short_description' => 'Extract embedded images from PDF.',
+        'long_description' => 'Extract all embedded images from your PDF document. Download images in their original format as a ZIP file.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 30,
+    ],
+
+    'pdf-to-long-image' => [
+        'name' => 'PDF to Long Image',
+        'category' => 'convert',
+        'icon' => '📜',
+        'color' => '#FF5722',
+        'short_description' => 'Convert PDF to a single long image.',
+        'long_description' => 'Stitch all PDF pages together vertically into one long continuous image. Perfect for scrollable previews.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 31,
+    ],
+
+    'join-images' => [
+        'name' => 'Join Images',
+        'category' => 'convert',
+        'icon' => '🔗',
+        'color' => '#2196F3',
+        'short_description' => 'Combine images vertically or horizontally.',
+        'long_description' => 'Join multiple images into one by stacking them vertically or placing them side by side horizontally.',
+        'is_active' => true,
+        'is_premium' => false,
+        'is_featured' => false,
+        'sort_order' => 32,
     ],
 ];

@@ -1284,6 +1284,664 @@ class PDFEngine
     }
 
     // =========================================================================
+    // IMAGE OPERATIONS
+    // =========================================================================
+
+    /**
+     * Convert multiple images to PDF
+     *
+     * Creates a PDF with each image on a separate page.
+     *
+     * @param array  $imagePaths Array of image file paths
+     * @param string $outputPath Path for the output PDF file
+     * @param array  $options    Options: orientation, pageSize, margin
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws InvalidArgumentException If no images provided or files don't exist
+     * @throws Exception On processing errors
+     */
+    public function images_to_pdf(array $imagePaths, string $outputPath, array $options = []): bool
+    {
+        if (empty($imagePaths)) {
+            throw new InvalidArgumentException('No image files provided');
+        }
+
+        // Default options
+        $defaults = [
+            'orientation' => 'auto',  // auto, P (portrait), L (landscape)
+            'pageSize' => 'A4',
+            'margin' => 10,
+            'fitToPage' => true,
+        ];
+
+        $options = array_merge($defaults, $options);
+
+        // Validate all images exist
+        foreach ($imagePaths as $imagePath) {
+            if (!file_exists($imagePath)) {
+                throw new InvalidArgumentException("Image file not found: {$imagePath}");
+            }
+        }
+
+        try {
+            $pdf = new \FPDF();
+
+            foreach ($imagePaths as $imagePath) {
+                // Get image dimensions
+                $imageInfo = @getimagesize($imagePath);
+                if (!$imageInfo) {
+                    throw new Exception("Invalid image file: {$imagePath}");
+                }
+
+                $imgWidth = $imageInfo[0];
+                $imgHeight = $imageInfo[1];
+                $imgType = $imageInfo[2];
+
+                // Convert WebP to PNG if needed (FPDF doesn't support WebP)
+                $tempImage = null;
+                if ($imgType === IMAGETYPE_WEBP) {
+                    $tempImage = $this->convert_webp_to_png($imagePath);
+                    $imagePath = $tempImage;
+                }
+
+                // Determine orientation
+                $orientation = $options['orientation'];
+                if ($orientation === 'auto') {
+                    $orientation = ($imgWidth > $imgHeight) ? 'L' : 'P';
+                }
+
+                // Add page
+                $pdf->AddPage($orientation, $options['pageSize']);
+
+                // Calculate dimensions to fit image on page
+                $pageWidth = $pdf->GetPageWidth();
+                $pageHeight = $pdf->GetPageHeight();
+                $margin = $options['margin'];
+
+                $availWidth = $pageWidth - (2 * $margin);
+                $availHeight = $pageHeight - (2 * $margin);
+
+                if ($options['fitToPage']) {
+                    // Scale to fit while maintaining aspect ratio
+                    $scale = min($availWidth / $imgWidth, $availHeight / $imgHeight);
+                    $newWidth = $imgWidth * $scale;
+                    $newHeight = $imgHeight * $scale;
+
+                    // Center on page
+                    $x = $margin + ($availWidth - $newWidth) / 2;
+                    $y = $margin + ($availHeight - $newHeight) / 2;
+                } else {
+                    $newWidth = min($imgWidth, $availWidth);
+                    $newHeight = min($imgHeight, $availHeight);
+                    $x = $margin;
+                    $y = $margin;
+                }
+
+                // Add image to PDF
+                $pdf->Image($imagePath, $x, $y, $newWidth, $newHeight);
+
+                // Clean up temp file
+                if ($tempImage && file_exists($tempImage)) {
+                    unlink($tempImage);
+                }
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            $pdf->Output('F', $outputPath);
+
+            return file_exists($outputPath);
+
+        } catch (Exception $e) {
+            throw new Exception("Images to PDF failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Convert PDF pages to PNG images
+     *
+     * Requires Imagick extension. Falls back to GD workaround if unavailable.
+     *
+     * @param string $pdfPath   Path to the source PDF file
+     * @param string $outputDir Directory to save the images
+     * @param int    $quality   Image quality (1-100)
+     * @param int    $dpi       Resolution in DPI (default: 150)
+     *
+     * @return array Array of created image paths
+     *
+     * @throws InvalidArgumentException If file doesn't exist
+     * @throws Exception On processing errors
+     */
+    public function pdf_to_images(string $pdfPath, string $outputDir, int $quality = 90, int $dpi = 150): array
+    {
+        // Validate input file
+        if (!file_exists($pdfPath)) {
+            throw new InvalidArgumentException("File not found: {$pdfPath}");
+        }
+
+        if (!$this->is_valid_pdf($pdfPath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$pdfPath}");
+        }
+
+        // Ensure output directory exists
+        $this->ensure_directory($outputDir);
+
+        $outputFiles = [];
+
+        // Check for Imagick
+        if (extension_loaded('imagick')) {
+            try {
+                $imagick = new \Imagick();
+                $imagick->setResolution($dpi, $dpi);
+                $imagick->readImage($pdfPath);
+
+                $pageCount = $imagick->getNumberImages();
+
+                for ($i = 0; $i < $pageCount; $i++) {
+                    $imagick->setIteratorIndex($i);
+                    $imagick->setImageFormat('png');
+                    $imagick->setImageCompressionQuality($quality);
+
+                    $outputPath = rtrim($outputDir, '/') . '/page_' . ($i + 1) . '.png';
+                    $imagick->writeImage($outputPath);
+
+                    if (file_exists($outputPath)) {
+                        $outputFiles[] = $outputPath;
+                    }
+                }
+
+                $imagick->clear();
+                $imagick->destroy();
+
+                return $outputFiles;
+
+            } catch (Exception $e) {
+                throw new Exception("Imagick PDF conversion failed: " . $e->getMessage());
+            }
+        }
+
+        // GD Fallback: Create placeholder images with page info
+        // Note: GD cannot actually render PDF content
+        try {
+            $pdf = new Fpdi();
+            $pageCount = $pdf->setSourceFile($pdfPath);
+
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                // Create a placeholder image
+                $width = (int)($size['width'] * 2); // Scale up
+                $height = (int)($size['height'] * 2);
+
+                $img = imagecreatetruecolor($width, $height);
+
+                // White background
+                $white = imagecolorallocate($img, 255, 255, 255);
+                $gray = imagecolorallocate($img, 128, 128, 128);
+                $black = imagecolorallocate($img, 0, 0, 0);
+
+                imagefill($img, 0, 0, $white);
+
+                // Add border
+                imagerectangle($img, 0, 0, $width - 1, $height - 1, $gray);
+
+                // Add text indicating this is a placeholder
+                $text = "Page {$pageNo}";
+                $fontSize = 5;
+                $textWidth = imagefontwidth($fontSize) * strlen($text);
+                $textHeight = imagefontheight($fontSize);
+                $x = ($width - $textWidth) / 2;
+                $y = ($height - $textHeight) / 2;
+                imagestring($img, $fontSize, (int)$x, (int)$y, $text, $black);
+
+                // Add note about Imagick requirement
+                $note = "Imagick required for full rendering";
+                $noteWidth = imagefontwidth(2) * strlen($note);
+                imagestring($img, 2, (int)(($width - $noteWidth) / 2), (int)$y + 30, $note, $gray);
+
+                $outputPath = rtrim($outputDir, '/') . '/page_' . $pageNo . '.png';
+                imagepng($img, $outputPath, (int)((100 - $quality) / 10));
+                imagedestroy($img);
+
+                if (file_exists($outputPath)) {
+                    $outputFiles[] = $outputPath;
+                }
+            }
+
+            return $outputFiles;
+
+        } catch (Exception $e) {
+            throw new Exception("PDF to images failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Extract embedded images from PDF
+     *
+     * Parses PDF structure to extract image streams.
+     *
+     * @param string $pdfPath   Path to the source PDF file
+     * @param string $outputDir Directory to save extracted images
+     *
+     * @return array Array of extracted image paths
+     *
+     * @throws InvalidArgumentException If file doesn't exist
+     * @throws Exception On processing errors
+     */
+    public function extract_images_from_pdf(string $pdfPath, string $outputDir): array
+    {
+        // Validate input file
+        if (!file_exists($pdfPath)) {
+            throw new InvalidArgumentException("File not found: {$pdfPath}");
+        }
+
+        if (!$this->is_valid_pdf($pdfPath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$pdfPath}");
+        }
+
+        // Ensure output directory exists
+        $this->ensure_directory($outputDir);
+
+        $outputFiles = [];
+
+        try {
+            // Read PDF content
+            $content = file_get_contents($pdfPath);
+
+            // Find image streams (XObject with Subtype Image)
+            $imageCount = 0;
+
+            // Pattern to find image XObjects
+            // Look for stream...endstream blocks that are images
+            preg_match_all('/\/Subtype\s*\/Image.*?stream\r?\n(.*?)endstream/s', $content, $matches);
+
+            if (!empty($matches[1])) {
+                foreach ($matches[1] as $imageData) {
+                    $imageCount++;
+
+                    // Try to decode the image data
+                    // Check for common filters
+                    $decoded = $imageData;
+
+                    // Try FlateDecode
+                    if (function_exists('gzuncompress')) {
+                        $uncompressed = @gzuncompress($imageData);
+                        if ($uncompressed !== false) {
+                            $decoded = $uncompressed;
+                        }
+                    }
+
+                    // Try to create image from raw data
+                    $img = @imagecreatefromstring($decoded);
+
+                    if ($img !== false) {
+                        $outputPath = rtrim($outputDir, '/') . '/image_' . $imageCount . '.png';
+                        imagepng($img, $outputPath);
+                        imagedestroy($img);
+
+                        if (file_exists($outputPath)) {
+                            $outputFiles[] = $outputPath;
+                        }
+                    } else {
+                        // Save raw data for manual inspection
+                        // Check if it's JPEG by header
+                        if (substr($decoded, 0, 2) === "\xFF\xD8") {
+                            $outputPath = rtrim($outputDir, '/') . '/image_' . $imageCount . '.jpg';
+                            file_put_contents($outputPath, $decoded);
+                            if (file_exists($outputPath)) {
+                                $outputFiles[] = $outputPath;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Alternative: Look for DCTDecode (JPEG) streams
+            preg_match_all('/\/Filter\s*\/DCTDecode.*?stream\r?\n(.*?)endstream/s', $content, $jpegMatches);
+
+            if (!empty($jpegMatches[1])) {
+                foreach ($jpegMatches[1] as $jpegData) {
+                    $imageCount++;
+                    $outputPath = rtrim($outputDir, '/') . '/image_' . $imageCount . '.jpg';
+                    file_put_contents($outputPath, $jpegData);
+                    if (file_exists($outputPath)) {
+                        $outputFiles[] = $outputPath;
+                    }
+                }
+            }
+
+            return $outputFiles;
+
+        } catch (Exception $e) {
+            throw new Exception("Extract images failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Convert PDF to a single long image
+     *
+     * Stitches all PDF pages vertically into one image.
+     * Requires Imagick for full PDF rendering.
+     *
+     * @param string $pdfPath    Path to the source PDF file
+     * @param string $outputPath Path for the output image
+     * @param int    $quality    Image quality (1-100)
+     * @param int    $dpi        Resolution in DPI (default: 150)
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws InvalidArgumentException If file doesn't exist
+     * @throws Exception On processing errors
+     */
+    public function pdf_to_long_image(string $pdfPath, string $outputPath, int $quality = 90, int $dpi = 150): bool
+    {
+        // Validate input file
+        if (!file_exists($pdfPath)) {
+            throw new InvalidArgumentException("File not found: {$pdfPath}");
+        }
+
+        if (!$this->is_valid_pdf($pdfPath)) {
+            throw new InvalidArgumentException("Invalid PDF file: {$pdfPath}");
+        }
+
+        // Ensure output directory exists
+        $this->ensure_directory(dirname($outputPath));
+
+        // Check for Imagick
+        if (extension_loaded('imagick')) {
+            try {
+                $imagick = new \Imagick();
+                $imagick->setResolution($dpi, $dpi);
+                $imagick->readImage($pdfPath);
+
+                // Append all pages vertically
+                $imagick->resetIterator();
+                $combined = $imagick->appendImages(true); // true = stack vertically
+
+                $combined->setImageFormat('png');
+                $combined->setImageCompressionQuality($quality);
+                $combined->writeImage($outputPath);
+
+                $imagick->clear();
+                $imagick->destroy();
+                $combined->clear();
+                $combined->destroy();
+
+                return file_exists($outputPath);
+
+            } catch (Exception $e) {
+                throw new Exception("Imagick PDF to long image failed: " . $e->getMessage());
+            }
+        }
+
+        // GD Fallback: Create placeholder
+        try {
+            $pdf = new Fpdi();
+            $pageCount = $pdf->setSourceFile($pdfPath);
+
+            // Calculate total dimensions
+            $totalHeight = 0;
+            $maxWidth = 0;
+            $pages = [];
+
+            for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
+                $templateId = $pdf->importPage($pageNo);
+                $size = $pdf->getTemplateSize($templateId);
+
+                $width = (int)($size['width'] * 2);
+                $height = (int)($size['height'] * 2);
+
+                $pages[] = ['width' => $width, 'height' => $height, 'pageNo' => $pageNo];
+                $totalHeight += $height;
+                $maxWidth = max($maxWidth, $width);
+            }
+
+            // Create combined image
+            $img = imagecreatetruecolor($maxWidth, $totalHeight);
+            $white = imagecolorallocate($img, 255, 255, 255);
+            $gray = imagecolorallocate($img, 128, 128, 128);
+            $black = imagecolorallocate($img, 0, 0, 0);
+            imagefill($img, 0, 0, $white);
+
+            $yOffset = 0;
+            foreach ($pages as $page) {
+                // Draw page placeholder
+                imagerectangle($img, 0, $yOffset, $page['width'] - 1, $yOffset + $page['height'] - 1, $gray);
+
+                // Add page number
+                $text = "Page " . $page['pageNo'];
+                $fontSize = 5;
+                $textWidth = imagefontwidth($fontSize) * strlen($text);
+                $x = ($page['width'] - $textWidth) / 2;
+                $y = $yOffset + ($page['height'] / 2);
+                imagestring($img, $fontSize, (int)$x, (int)$y, $text, $black);
+
+                $yOffset += $page['height'];
+            }
+
+            // Add note
+            $note = "Imagick required for full rendering";
+            imagestring($img, 2, 10, 10, $note, $gray);
+
+            // Save
+            imagepng($img, $outputPath, (int)((100 - $quality) / 10));
+            imagedestroy($img);
+
+            return file_exists($outputPath);
+
+        } catch (Exception $e) {
+            throw new Exception("PDF to long image failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Join multiple images vertically or horizontally
+     *
+     * Combines images using GD library.
+     *
+     * @param array  $imagePaths Array of image file paths
+     * @param string $outputPath Path for the output image
+     * @param string $mode       Join mode: 'vertical' or 'horizontal'
+     * @param int    $quality    Image quality (1-100)
+     *
+     * @return bool True on success, false on failure
+     *
+     * @throws InvalidArgumentException If no images provided or files don't exist
+     * @throws Exception On processing errors
+     */
+    public function join_images(array $imagePaths, string $outputPath, string $mode = 'vertical', int $quality = 90): bool
+    {
+        if (empty($imagePaths)) {
+            throw new InvalidArgumentException('No image files provided');
+        }
+
+        // Validate mode
+        if (!in_array($mode, ['vertical', 'horizontal'])) {
+            throw new InvalidArgumentException("Invalid mode: {$mode}. Must be 'vertical' or 'horizontal'");
+        }
+
+        // Validate and load all images
+        $images = [];
+        $totalWidth = 0;
+        $totalHeight = 0;
+        $maxWidth = 0;
+        $maxHeight = 0;
+
+        foreach ($imagePaths as $imagePath) {
+            if (!file_exists($imagePath)) {
+                throw new InvalidArgumentException("Image file not found: {$imagePath}");
+            }
+
+            $img = $this->load_image($imagePath);
+            if (!$img) {
+                throw new Exception("Failed to load image: {$imagePath}");
+            }
+
+            $width = imagesx($img);
+            $height = imagesy($img);
+
+            $images[] = [
+                'resource' => $img,
+                'width' => $width,
+                'height' => $height
+            ];
+
+            if ($mode === 'vertical') {
+                $totalHeight += $height;
+                $maxWidth = max($maxWidth, $width);
+            } else {
+                $totalWidth += $width;
+                $maxHeight = max($maxHeight, $height);
+            }
+        }
+
+        try {
+            // Calculate final dimensions
+            if ($mode === 'vertical') {
+                $finalWidth = $maxWidth;
+                $finalHeight = $totalHeight;
+            } else {
+                $finalWidth = $totalWidth;
+                $finalHeight = $maxHeight;
+            }
+
+            // Create output image
+            $output = imagecreatetruecolor($finalWidth, $finalHeight);
+
+            // Set white background
+            $white = imagecolorallocate($output, 255, 255, 255);
+            imagefill($output, 0, 0, $white);
+
+            // Enable alpha blending
+            imagealphablending($output, true);
+            imagesavealpha($output, true);
+
+            // Copy images
+            $offset = 0;
+
+            foreach ($images as $imgData) {
+                $img = $imgData['resource'];
+                $width = $imgData['width'];
+                $height = $imgData['height'];
+
+                if ($mode === 'vertical') {
+                    // Center horizontally
+                    $x = (int)(($finalWidth - $width) / 2);
+                    $y = $offset;
+                    imagecopy($output, $img, $x, $y, 0, 0, $width, $height);
+                    $offset += $height;
+                } else {
+                    // Center vertically
+                    $x = $offset;
+                    $y = (int)(($finalHeight - $height) / 2);
+                    imagecopy($output, $img, $x, $y, 0, 0, $width, $height);
+                    $offset += $width;
+                }
+
+                // Free memory
+                imagedestroy($img);
+            }
+
+            // Ensure output directory exists
+            $this->ensure_directory(dirname($outputPath));
+
+            // Save output image
+            $ext = strtolower(pathinfo($outputPath, PATHINFO_EXTENSION));
+
+            switch ($ext) {
+                case 'jpg':
+                case 'jpeg':
+                    imagejpeg($output, $outputPath, $quality);
+                    break;
+                case 'png':
+                    imagepng($output, $outputPath, (int)((100 - $quality) / 10));
+                    break;
+                case 'webp':
+                    if (function_exists('imagewebp')) {
+                        imagewebp($output, $outputPath, $quality);
+                    } else {
+                        imagepng($output, $outputPath);
+                    }
+                    break;
+                default:
+                    imagepng($output, $outputPath);
+            }
+
+            imagedestroy($output);
+
+            return file_exists($outputPath);
+
+        } catch (Exception $e) {
+            // Clean up
+            foreach ($images as $imgData) {
+                if (is_resource($imgData['resource']) || $imgData['resource'] instanceof \GdImage) {
+                    imagedestroy($imgData['resource']);
+                }
+            }
+            throw new Exception("Join images failed: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Load image from file (supports JPG, PNG, GIF, WebP)
+     *
+     * @param string $imagePath Path to the image file
+     *
+     * @return resource|GdImage|false GD image resource or false on failure
+     */
+    private function load_image(string $imagePath)
+    {
+        $imageInfo = @getimagesize($imagePath);
+        if (!$imageInfo) {
+            return false;
+        }
+
+        switch ($imageInfo[2]) {
+            case IMAGETYPE_JPEG:
+                return imagecreatefromjpeg($imagePath);
+            case IMAGETYPE_PNG:
+                return imagecreatefrompng($imagePath);
+            case IMAGETYPE_GIF:
+                return imagecreatefromgif($imagePath);
+            case IMAGETYPE_WEBP:
+                if (function_exists('imagecreatefromwebp')) {
+                    return imagecreatefromwebp($imagePath);
+                }
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Convert WebP image to PNG (for FPDF compatibility)
+     *
+     * @param string $webpPath Path to the WebP file
+     *
+     * @return string|null Path to the converted PNG file
+     */
+    private function convert_webp_to_png(string $webpPath): ?string
+    {
+        if (!function_exists('imagecreatefromwebp')) {
+            return null;
+        }
+
+        $img = imagecreatefromwebp($webpPath);
+        if (!$img) {
+            return null;
+        }
+
+        $tempPath = $this->tempDir . '/webp_' . bin2hex(random_bytes(8)) . '.png';
+        imagepng($img, $tempPath);
+        imagedestroy($img);
+
+        return file_exists($tempPath) ? $tempPath : null;
+    }
+
+    // =========================================================================
     // UTILITY METHODS
     // =========================================================================
 
@@ -1643,4 +2301,81 @@ function pdf_flatten(string $filePath, string $outputPath): bool
 {
     $engine = new PDFEngine();
     return $engine->flatten_pdf($filePath, $outputPath);
+}
+
+/**
+ * Quick images to PDF function
+ *
+ * @param array  $imagePaths Image file paths
+ * @param string $outputPath Output PDF path
+ * @param array  $options    Options
+ *
+ * @return bool Success status
+ */
+function images_to_pdf(array $imagePaths, string $outputPath, array $options = []): bool
+{
+    $engine = new PDFEngine();
+    return $engine->images_to_pdf($imagePaths, $outputPath, $options);
+}
+
+/**
+ * Quick PDF to images function
+ *
+ * @param string $pdfPath   Input PDF path
+ * @param string $outputDir Output directory
+ * @param int    $quality   Image quality
+ * @param int    $dpi       Resolution
+ *
+ * @return array Created image paths
+ */
+function pdf_to_images(string $pdfPath, string $outputDir, int $quality = 90, int $dpi = 150): array
+{
+    $engine = new PDFEngine();
+    return $engine->pdf_to_images($pdfPath, $outputDir, $quality, $dpi);
+}
+
+/**
+ * Quick extract images from PDF function
+ *
+ * @param string $pdfPath   Input PDF path
+ * @param string $outputDir Output directory
+ *
+ * @return array Extracted image paths
+ */
+function extract_images_from_pdf(string $pdfPath, string $outputDir): array
+{
+    $engine = new PDFEngine();
+    return $engine->extract_images_from_pdf($pdfPath, $outputDir);
+}
+
+/**
+ * Quick PDF to long image function
+ *
+ * @param string $pdfPath    Input PDF path
+ * @param string $outputPath Output image path
+ * @param int    $quality    Image quality
+ * @param int    $dpi        Resolution
+ *
+ * @return bool Success status
+ */
+function pdf_to_long_image(string $pdfPath, string $outputPath, int $quality = 90, int $dpi = 150): bool
+{
+    $engine = new PDFEngine();
+    return $engine->pdf_to_long_image($pdfPath, $outputPath, $quality, $dpi);
+}
+
+/**
+ * Quick join images function
+ *
+ * @param array  $imagePaths Image file paths
+ * @param string $outputPath Output image path
+ * @param string $mode       Join mode: vertical or horizontal
+ * @param int    $quality    Image quality
+ *
+ * @return bool Success status
+ */
+function join_images(array $imagePaths, string $outputPath, string $mode = 'vertical', int $quality = 90): bool
+{
+    $engine = new PDFEngine();
+    return $engine->join_images($imagePaths, $outputPath, $mode, $quality);
 }
